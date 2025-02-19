@@ -55,9 +55,9 @@ func New(name string, numBuckets uint8, redistributeInerval uint32, samples <-ch
 	}
 
 	// Send the initial buckets
-	for _, bucket := range h.buckets {
-		buckets <- bucket
-	}
+	// for _, bucket := range h.buckets {
+	// 	buckets <- bucket
+	// }
 
 	go h.collect(samples, buckets)
 
