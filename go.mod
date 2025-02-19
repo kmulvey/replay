@@ -5,6 +5,7 @@ go 1.24.0
 require (
 	github.com/gdamore/tcell/v2 v2.8.1
 	github.com/gofiber/fiber/v3 v3.0.0-beta.4
+	github.com/kmulvey/goutils v0.9.0
 	github.com/mrichman/hargo v1.0.1
 	github.com/navidys/tvxwidgets v0.10.0
 	github.com/rivo/tview v0.0.0-20241227133733-17b7edb88c57

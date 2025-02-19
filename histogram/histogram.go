@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"time"
+
+	"github.com/kmulvey/replay/journey"
 )
 
 // Define a histogram bucket structure
@@ -23,7 +25,7 @@ type Bucket struct {
 
 // New sreates a new histogram with a predefined number of buckets. The bucket ranges
 // are 0-1s initially but will be recalculated as the data comes in.
-func New(numBuckets uint8, redistributeInerval uint32, samples <-chan time.Duration, buckets chan<- Bucket) *Histogram {
+func New(numBuckets uint8, redistributeInerval uint32, samples <-chan journey.RequestDuration, buckets chan<- Bucket) *Histogram {
 	if numBuckets == 0 {
 		numBuckets = 5
 	}
@@ -57,11 +59,11 @@ func New(numBuckets uint8, redistributeInerval uint32, samples <-chan time.Durat
 	return h
 }
 
-func (h *Histogram) collect(samples <-chan time.Duration, buckets chan<- Bucket) {
+func (h *Histogram) collect(samples <-chan journey.RequestDuration, buckets chan<- Bucket) {
 	var seen uint32
-	for duration := range samples {
-		h.insertDuration(duration)
-		buckets <- h.bucketDuration(duration)
+	for sample := range samples {
+		h.insertDuration(sample.Duration)
+		buckets <- h.bucketDuration(sample.Duration)
 
 		seen++
 		if seen == h.redistributeInerval {
@@ -72,6 +74,7 @@ func (h *Histogram) collect(samples <-chan time.Duration, buckets chan<- Bucket)
 			seen = 0
 		}
 	}
+	close(buckets)
 }
 
 func (h *Histogram) redistributeBuckets() {

@@ -2,7 +2,9 @@ package replay
 
 import (
 	"testing"
+	"time"
 
+	"github.com/kmulvey/goutils"
 	"github.com/kmulvey/replay/histogram"
 	"github.com/kmulvey/replay/journey"
 	"github.com/stretchr/testify/assert"
@@ -15,20 +17,53 @@ func TestRunBenchmark(t *testing.T) {
 	assert.NoError(t, err)
 
 	var responses = make(chan journey.RequestDuration)
-	err = j.Stream(100, 2, responses)
-	assert.NoError(t, err)
+	go func() {
+		err = j.Stream(100, 2, responses)
+		assert.NoError(t, err)
+	}()
 
-	var graphs = make([]chan journey.RequestDuration, 2)
+	var graphs = make([]chan journey.RequestDuration, 3)
+	for i := range graphs {
+		graphs[i] = make(chan journey.RequestDuration)
+	}
+	go fanOut(responses, graphs...)
 
-	var oneBuckets = make(chan histogram.Bucket)
-	one := histogram.New(5, 10, graphs[0], oneBuckets)
+	var buckets = make([]chan histogram.Bucket, 3)
+	for i := range buckets {
+		buckets[i] = make(chan histogram.Bucket)
+	}
+	var done = make(chan struct{})
 
-	// // Print the histogram
-	// histogram.Print()
+	go func() {
+		for bucket := range goutils.MergeChannels(buckets...) {
+			t.Logf("One: %+v", bucket)
+		}
+		close(done)
+	}()
+
+	time.Sleep(time.Second)
+
+	one := histogram.New(5, 10, graphs[0], buckets[0])
+	two := histogram.New(5, 10, graphs[1], buckets[1])
+	three := histogram.New(5, 10, graphs[2], buckets[2])
+
+	for {
+		select {
+		case <-done:
+			return
+		case <-time.After(time.Second * 10):
+			one.Print()
+			two.Print()
+			three.Print()
+		}
+	}
 }
 
-func splitter(samples <-chan journey.RequestDuration, graphs ...chan<- journey.RequestDuration) {
+func fanOut(samples <-chan journey.RequestDuration, graphs ...chan journey.RequestDuration) {
 	for sample := range samples {
 		graphs[sample.ID] <- sample
+	}
+	for _, graph := range graphs {
+		close(graph)
 	}
 }

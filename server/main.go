@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"time"
 
@@ -11,20 +12,20 @@ func main() {
 	app := fiber.New()
 
 	app.Get("/slow", func(c fiber.Ctx) error {
-		time.Sleep(time.Millisecond * 100)
-		//fmt.Println("slow")
+		time.Sleep(time.Millisecond * 10)
+		fmt.Println("slow")
 		return c.SendString("slow")
 	})
 
 	app.Get("/medium", func(c fiber.Ctx) error {
-		time.Sleep(time.Millisecond * 50)
-		//fmt.Println("medium")
+		time.Sleep(time.Millisecond * 5)
+		fmt.Println("medium")
 		return c.SendString("medium")
 	})
 
 	app.Get("/fast", func(c fiber.Ctx) error {
 		time.Sleep(time.Millisecond)
-		///fmt.Println("fast")
+		fmt.Println("fast")
 		return c.SendString("fast")
 	})
 
