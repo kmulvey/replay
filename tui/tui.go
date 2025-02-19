@@ -26,28 +26,27 @@ type BarChartConfig struct {
 
 func configureTUI(configs []BarChartConfig, buckets <-chan histogram.Bucket) *tview.Application {
 	app := tview.NewApplication()
-	rows := make([]*tview.Flex, len(configs)/3)
+	numRows := (len(configs) + 2) / 3
+	rows := make([]*tview.Flex, numRows)
 	charts := make(map[string]*tvxwidgets.BarChart, len(configs))
 
 	var rowNum int
+	rows[rowNum] = tview.NewFlex().SetDirection(tview.FlexColumn)
 	for i, config := range configs {
-		if i%3 == 0 {
+		if i%3 == 0 && i != 0 {
 			rowNum++
 			rows[rowNum] = tview.NewFlex().SetDirection(tview.FlexColumn)
 		}
-		rows[rowNum] = tview.NewFlex().SetDirection(tview.FlexColumn)
 		var chart = createBarChart(config)
 		charts[config.title] = chart
 		rows[rowNum].AddItem(chart, 0, 1, false)
-		rows[rowNum].SetRect(0, 0, 100, 15)
 	}
 
 	layout := tview.NewFlex().SetDirection(tview.FlexRow)
 	for _, row := range rows {
 		layout.AddItem(row, 0, 1, false)
 	}
-	layout.SetRect(0, 0, 100, 30)
-	app.SetRoot(layout, false).EnableMouse(true)
+	app.SetRoot(layout, true).EnableMouse(true)
 
 	go func() {
 		for bucket := range buckets {
@@ -61,7 +60,6 @@ func configureTUI(configs []BarChartConfig, buckets <-chan histogram.Bucket) *tv
 
 func createBarChart(config BarChartConfig) *tvxwidgets.BarChart {
 	barGraph := tvxwidgets.NewBarChart()
-	barGraph.SetRect(4, 2, 50, 20)
 	barGraph.SetBorder(true)
 	barGraph.SetTitle(config.title)
 
