@@ -34,7 +34,7 @@ func (j *Journey) Stream(numRequests uint16, concurrency uint8, responses chan<-
 	for range concurrency {
 		errGroup.Go(func() error {
 			for range numRequests / uint16(concurrency) {
-				for _, req := range j.requests {
+				for _, req := range j.Requests {
 					duration, err := j.makeRequest(req)
 					if err != nil {
 						return fmt.Errorf("error making request: %w", err)
@@ -98,7 +98,7 @@ func (j *Journey) makeRequest(requestConfig requestConfig) (time.Duration, error
 }
 
 func (j *Journey) collect(responses chan RequestDuration) journeyTiming {
-	var timings = make(journeyTiming, len(j.requests))
+	var timings = make(journeyTiming, len(j.Requests))
 
 	for response := range responses {
 		timings[response.ID] = append(timings[response.ID], response)

@@ -1,42 +1,33 @@
 package main
 
 import (
-	"math"
+	"flag"
+	"math/rand"
 
-	"github.com/gdamore/tcell/v2"
+	"github.com/gdamore/tcell"
+	"github.com/kmulvey/replay/histogram"
 	"github.com/navidys/tvxwidgets"
 	"github.com/rivo/tview"
 )
 
 func main() {
 
+	var totalNumberOfRequests int
+	var concurrentRequests int
+	var harFile string
+	flag.IntVar(&totalNumberOfRequests, "total", 100, "total number of requests")
+	flag.IntVar(&concurrentRequests, "concurrent", 10, "number of concurrent requests")
+	flag.StringVar(&harFile, "har", "localhost.har", "har file to replay")
+	flag.Parse()
+
+}
+
+func configureTUI(journeyLength uint8) *tview.Application {
 	app := tview.NewApplication()
+	rows := make([]*tview.Flex, journeyLength/3)
 
-	sinData := func() [][]float64 {
-		n := 220
-		data := make([][]float64, 2)
-		data[0] = make([]float64, n)
-		data[1] = make([]float64, n)
-		for i := 0; i < n; i++ {
-			data[0][i] = 1 + math.Sin(float64(i+1)/5)
-			// Avoid taking Cos(0) because it creates a high point of 2 that
-			// will never be hit again and makes the graph look a little funny
-			data[1][i] = 1 + math.Cos(float64(i+1)/5)
-		}
-		return data
-	}()
-
-	bmLineChart := tvxwidgets.NewPlot()
-	bmLineChart.SetBorder(true)
-	bmLineChart.SetTitle("line chart (braille mode)")
-	bmLineChart.SetLineColor([]tcell.Color{
-		tcell.ColorSteelBlue,
-		tcell.ColorGreen,
-	})
-	bmLineChart.SetMarker(tvxwidgets.PlotMarkerBraille)
-	bmLineChart.SetData(sinData)
-	bmLineChart.SetDrawXAxisLabel(false)
-
+	for i := range journeyLength {
+	}
 	firstRow := tview.NewFlex().SetDirection(tview.FlexColumn)
 	firstRow.AddItem(bmLineChart, 0, 1, false)
 	firstRow.SetRect(0, 0, 100, 15)
@@ -52,4 +43,19 @@ func main() {
 	if err := app.SetRoot(layout, false).EnableMouse(true).Run(); err != nil {
 		panic(err)
 	}
+}
+
+func createBarChart(title string, buckets []histogram.Bucket) *tvxwidgets.BarChart {
+	barGraph := tvxwidgets.NewBarChart()
+	barGraph.SetRect(4, 2, 50, 20)
+	barGraph.SetBorder(true)
+	barGraph.SetTitle(title)
+	// display system metric usage
+	for _, bucket := range buckets {
+		barGraph.AddBar(bucket.Range, int(bucket.Count), tcell.NewHexColor(rand.Intn(0xFFFFFF)))
+	}
+	barGraph.SetMaxValue(100)
+	barGraph.SetAxesColor(tcell.ColorAntiqueWhite)
+	barGraph.SetAxesLabelColor(tcell.ColorAntiqueWhite)
+	return barGraph
 }
