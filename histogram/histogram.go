@@ -10,6 +10,7 @@ import (
 
 // Define a histogram bucket structure
 type Histogram struct {
+	Name                string
 	buckets             []Bucket
 	durations           []time.Duration
 	bucketSize          time.Duration
@@ -25,13 +26,14 @@ type Bucket struct {
 
 // New sreates a new histogram with a predefined number of buckets. The bucket ranges
 // are 0-1s initially but will be recalculated as the data comes in.
-func New(numBuckets uint8, redistributeInerval uint32, samples <-chan journey.RequestDuration, buckets chan<- Bucket) *Histogram {
+func New(name string, numBuckets uint8, redistributeInerval uint32, samples <-chan journey.RequestDuration, buckets chan<- Bucket) (*Histogram, []Bucket) {
 	if numBuckets == 0 {
 		numBuckets = 5
 	}
 
 	// Create and return the histogram
 	var h = &Histogram{
+		Name:                name,
 		buckets:             make([]Bucket, numBuckets),
 		durations:           make([]time.Duration, 0),
 		bucketSize:          time.Second / time.Duration(numBuckets),
@@ -56,7 +58,11 @@ func New(numBuckets uint8, redistributeInerval uint32, samples <-chan journey.Re
 	}
 
 	go h.collect(samples, buckets)
-	return h
+
+	initialBuckets := make([]Bucket, len(h.buckets))
+	copy(initialBuckets, h.buckets)
+
+	return h, initialBuckets
 }
 
 func (h *Histogram) collect(samples <-chan journey.RequestDuration, buckets chan<- Bucket) {
