@@ -18,7 +18,7 @@ func TestRunBenchmark(t *testing.T) {
 
 	var responses = make(chan journey.RequestDuration)
 	go func() {
-		err = j.Stream(100, 2, responses)
+		err = j.Stream(200, 2, responses)
 		assert.NoError(t, err)
 	}()
 
