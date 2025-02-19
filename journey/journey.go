@@ -39,6 +39,8 @@ type requestTimings []RequestDuration
 // journeyTiming is a slice that represents the durations of each request in the journey.
 type journeyTiming []requestTimings
 
+// New configures a new journey from a har file by parsing the interesting data and creating the
+// slice fo requests that will be used to replay the journey.
 func New(harFile string) (*Journey, error) {
 
 	file, err := os.Open(harFile)
