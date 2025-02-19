@@ -69,16 +69,14 @@ func (j *Journey) makeRequest(requestConfig requestConfig) (time.Duration, error
 		return 0, fmt.Errorf("error building request: %s %s, error: %w", requestConfig.Method, requestConfig.URL, err)
 	}
 
-	if requestConfig.Headers != nil {
-		for k, v := range requestConfig.Headers {
-			req.Header.Set(k, v)
-		}
+	for k, v := range requestConfig.Headers {
+		req.Header.Set(k, v)
+
 	}
 
-	if requestConfig.Cookies != nil {
-		for k, v := range requestConfig.Cookies {
-			req.AddCookie(&http.Cookie{Name: k, Value: v})
-		}
+	for k, v := range requestConfig.Cookies {
+		req.AddCookie(&http.Cookie{Name: k, Value: v})
+
 	}
 
 	if requestConfig.MimeType != "" {
