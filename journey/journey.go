@@ -11,7 +11,7 @@ import (
 )
 
 type Journey struct {
-	requests []requestConfig
+	Requests []requestConfig
 }
 
 type requestConfig struct {
@@ -52,10 +52,10 @@ func New(harFile string) (*Journey, error) {
 	}
 
 	var journey = new(Journey)
-	journey.requests = make([]requestConfig, len(harRequests.Log.Entries))
+	journey.Requests = make([]requestConfig, len(harRequests.Log.Entries))
 
 	for i, entry := range harRequests.Log.Entries {
-		journey.requests[i] = requestConfig{
+		journey.Requests[i] = requestConfig{
 			ID:                   uint8(i),
 			Name:                 entry.Pageref,
 			MimeType:             entry.Request.PostData.MimeType,
@@ -66,25 +66,25 @@ func New(harFile string) (*Journey, error) {
 		}
 
 		if entry.Request.Headers != nil {
-			journey.requests[i].Headers = make(map[string]string, len(entry.Request.Headers))
+			journey.Requests[i].Headers = make(map[string]string, len(entry.Request.Headers))
 			for _, header := range entry.Request.Headers {
 				if !strings.HasPrefix(header.Name, ":") {
-					journey.requests[i].Headers[header.Name] = header.Value
+					journey.Requests[i].Headers[header.Name] = header.Value
 				}
 			}
 		}
 
 		if entry.Request.Cookies != nil {
-			journey.requests[i].Cookies = make(map[string]string, len(entry.Request.Cookies))
+			journey.Requests[i].Cookies = make(map[string]string, len(entry.Request.Cookies))
 			for _, cookie := range entry.Request.Cookies {
-				journey.requests[i].Cookies[cookie.Name] = cookie.Value
+				journey.Requests[i].Cookies[cookie.Name] = cookie.Value
 			}
 		}
 
 		if entry.Request.QueryString != nil {
-			journey.requests[i].Query = make(map[string]string, len(entry.Request.QueryString))
+			journey.Requests[i].Query = make(map[string]string, len(entry.Request.QueryString))
 			for _, query := range entry.Request.QueryString {
-				journey.requests[i].Query[query.Name] = query.Value
+				journey.Requests[i].Query[query.Name] = query.Value
 			}
 		}
 	}
