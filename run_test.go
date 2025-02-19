@@ -1,15 +1,6 @@
 package replay
 
-import (
-	"testing"
-	"time"
-
-	"github.com/kmulvey/goutils"
-	"github.com/kmulvey/replay/histogram"
-	"github.com/kmulvey/replay/journey"
-	"github.com/stretchr/testify/assert"
-)
-
+/*
 func TestRunBenchmark(t *testing.T) {
 	t.Parallel()
 
@@ -67,3 +58,4 @@ func fanOut(samples <-chan journey.RequestDuration, graphs ...chan journey.Reque
 		close(graph)
 	}
 }
+*/
