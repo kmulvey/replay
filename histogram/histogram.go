@@ -88,26 +88,23 @@ func (h *Histogram) redistributeBuckets() {
 		h.buckets[i].Count = 0
 	}
 
-	// Calculate the number of elements per bucket
-	elementsPerBucket := len(h.durations) / bucketCount
-	extraElements := len(h.durations) % bucketCount
+	// Calculate the new bucket size based on the min and max durations
+	h.bucketSize = (h.max - h.min) / time.Duration(bucketCount)
 
-	startIndex := 0
-	for i := range h.buckets {
-		endIndex := startIndex + elementsPerBucket
-		if i < extraElements {
-			endIndex++
+	// Redistribute the durations into the new buckets
+	for _, duration := range h.durations {
+		bucketIndex := int((duration - h.min) / h.bucketSize)
+		if bucketIndex >= bucketCount {
+			bucketIndex = bucketCount - 1
 		}
+		h.buckets[bucketIndex].Count++
+	}
 
-		// Count the elements in the current bucket
-		h.buckets[i].Count = uint64(endIndex - startIndex)
-
-		// Update the range for the current bucket
+	// Update the range for each bucket
+	for i := range h.buckets {
 		start := h.min + time.Duration(i)*h.bucketSize
 		end := start + h.bucketSize
 		h.buckets[i].Range = fmt.Sprintf("%v - %v", start, end)
-
-		startIndex = endIndex
 	}
 }
 
