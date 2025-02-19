@@ -20,8 +20,9 @@ type Histogram struct {
 }
 
 type Bucket struct {
-	Range string
-	Count uint64
+	HistogramName string
+	Range         string
+	Count         uint64
 }
 
 // New sreates a new histogram with a predefined number of buckets. The bucket ranges
@@ -47,8 +48,9 @@ func New(name string, numBuckets uint8, redistributeInerval uint32, samples <-ch
 		start := h.min + time.Duration(i)*h.bucketSize
 		end := start + h.bucketSize
 		h.buckets[i] = Bucket{
-			Range: fmt.Sprintf("%v - %v", start, end),
-			Count: 0,
+			HistogramName: name,
+			Range:         fmt.Sprintf("%v - %v", start, end),
+			Count:         0,
 		}
 	}
 
