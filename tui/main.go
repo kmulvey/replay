@@ -21,7 +21,11 @@ func main() {
 	flag.StringVar(&harFile, "har", "../localhost.har", "har file to replay")
 	flag.Parse()
 
-	var tui = journeyUI(harFile, totalNumberOfRequests, concurrentRequests)
+	var tui, err = journeyUI(harFile, totalNumberOfRequests, concurrentRequests)
+	if err != nil {
+		panic(err)
+	}
+
 	go func() {
 		if err := tui.Run(); err != nil {
 			panic(err)
@@ -35,20 +39,24 @@ func main() {
 	os.Exit(0)
 }
 
-func journeyUI(harFile string, totalNumberOfRequests, concurrentRequests int) *tview.Application {
+func journeyUI(harFile string, totalNumberOfRequests, concurrentRequests int) (*tview.Application, error) {
 
 	var j, err = journey.New(harFile)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
-	var responses = make(chan journey.RequestDuration)
+	// journeyResponses are the timings of each request
+	var journeyResponses = make(chan journey.RequestDuration)
+
+	// we need to fan out the journeyResponses to each graph, one graph per request
 	var graphs = make([]chan journey.RequestDuration, len(j.Requests))
 	for i := range graphs {
 		graphs[i] = make(chan journey.RequestDuration)
 	}
-	go fanOut(responses, graphs...)
+	go fanOut(journeyResponses, graphs...)
 
+	// buckets are the histogram bucket values for each request
 	var buckets = make([]chan histogram.Bucket, len(j.Requests))
 	for i := range buckets {
 		buckets[i] = make(chan histogram.Bucket)
@@ -64,15 +72,17 @@ func journeyUI(harFile string, totalNumberOfRequests, concurrentRequests int) *t
 		initialBuckets[i] = chartConfig
 	}
 
+	var tui = configureTUI(initialBuckets, goutils.MergeChannels(buckets...))
+
+	// stream makes the requests and sends the timings to journeyResponses
 	go func() {
-		err = j.Stream(uint16(totalNumberOfRequests), uint8(concurrentRequests), responses)
+		err = j.Stream(uint16(totalNumberOfRequests), uint8(concurrentRequests), journeyResponses)
 		if err != nil {
-			//return err
-			// ???
+			panic(err) // TODO: i dont love this
 		}
 	}()
 
-	return configureTUI(initialBuckets, goutils.MergeChannels(buckets...))
+	return tui, nil
 }
 
 func fanOut(samples <-chan journey.RequestDuration, graphs ...chan journey.RequestDuration) {
