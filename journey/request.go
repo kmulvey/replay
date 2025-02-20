@@ -3,8 +3,8 @@ package journey
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -100,43 +100,33 @@ func (j *Journey) makeRequest(requestConfig requestConfig, numRequests uint16, r
 	}
 
 	var cache = dnscache.New(5 * time.Minute)
-	//addrValue := net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 45678}
 	client := &http.Client{
 		Transport: &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 100,
+			IdleConnTimeout:     90 * time.Second,
 			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+				// Split the address to get the host and port
 				separator := strings.LastIndex(address, ":")
-				ips, err := cache.Fetch(address[:separator])
+				if separator == -1 {
+					return nil, fmt.Errorf("invalid address format: %s", address)
+				}
+				host := address[:separator]
+				port := address[separator+1:]
+
+				// Check if the IP is cached, otherwise resolve it
+				ips, err := cache.Fetch(host)
 				if err != nil {
 					return nil, fmt.Errorf("failed to fetch IPs: %w", err)
 				}
+
+				// Try to connect to each IP address
 				var lastErr error
 				for _, ip := range ips {
 					conn, err := (&net.Dialer{
 						Timeout:   30 * time.Second,
 						KeepAlive: 30 * time.Second,
-						//LocalAddr: &addrValue,
-					}).DialContext(ctx, network, net.JoinHostPort(ip.String(), address[separator+1:]))
-					if err == nil {
-						return conn, nil
-					}
-					lastErr = err
-				}
-				return nil, fmt.Errorf("failed to connect to any IP: %w", lastErr)
-			},
-			DialTLSContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-				separator := strings.LastIndex(address, ":")
-				ips, err := cache.Fetch(address[:separator])
-				if err != nil {
-					return nil, fmt.Errorf("failed to fetch IPs: %w", err)
-				}
-				var lastErr error
-				for _, ip := range ips {
-					conn, err := tls.DialWithDialer(&net.Dialer{
-						Timeout:   30 * time.Second,
-						KeepAlive: 30 * time.Second,
-					}, network, net.JoinHostPort(ip.String(), address[separator+1:]), &tls.Config{
-						InsecureSkipVerify: true,
-					})
+					}).DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
 					if err == nil {
 						return conn, nil
 					}
@@ -151,6 +141,8 @@ func (j *Journey) makeRequest(requestConfig requestConfig, numRequests uint16, r
 		start := time.Now()
 		resp, err := client.Do(req)
 		duration := time.Since(start)
+		io.ReadAll(resp.Body)
+		resp.Body.Close()
 
 		if err != nil {
 			responses <- RequestDuration{

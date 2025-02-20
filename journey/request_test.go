@@ -38,6 +38,9 @@ func TestMakeRequest(t *testing.T) {
 				panic(i)
 			}
 			i++
+			if i%1000 == 0 {
+				fmt.Println(i)
+			}
 		}
 		close(done)
 	}()
