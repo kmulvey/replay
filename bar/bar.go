@@ -30,6 +30,7 @@ func main() {
 			app.Draw()
 			time.Sleep(100 * time.Millisecond)
 		}
+		app.Stop()
 	}
 	go update()
 
