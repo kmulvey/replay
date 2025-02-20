@@ -29,10 +29,10 @@ type requestConfig struct {
 
 // RequestDuration is a type that represents the duration of the request.
 type RequestDuration struct {
-	ID   uint8
-	Name string
-	time.Duration
-	error
+	ID       uint8
+	Name     string
+	Duration time.Duration
+	Error    error
 }
 
 type requestTimings []RequestDuration

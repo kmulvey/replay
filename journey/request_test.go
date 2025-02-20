@@ -9,16 +9,21 @@ import (
 )
 
 // BenchmarkXxx-32    	      13	  77846182 ns/op
+// BenchmarkXxx-32    	     956	   1215107 ns/op
 
-// func BenchmarkXxx(b *testing.B) {
+func BenchmarkXxx(b *testing.B) {
 
-// 	var j, err = New("../localhost.har")
-// 	assert.NoError(b, err)
+	var j, err = New("../localhost.har")
+	assert.NoError(b, err)
 
-// 	for b.Loop() {
-// 		j.makeRequest(j.Requests[0])
-// 	}
-// }
+	var client = makeClient()
+	req, err := makeRequest(j.Requests[0])
+	assert.NoError(b, err)
+
+	for b.Loop() {
+		j.runRequest(client, req, 200)
+	}
+}
 
 func TestMakeRequest(t *testing.T) {
 
@@ -26,15 +31,15 @@ func TestMakeRequest(t *testing.T) {
 	var j, err = New("../localhost.har")
 	assert.NoError(t, err)
 
-	var req = j.Requests[0]
+	var reqConfig = j.Requests[0]
 	var responses = make(chan RequestDuration)
 	var done = make(chan struct{})
 	go func() {
 		var i int
 		for resp := range responses {
-			assert.NoError(t, resp.error)
+			assert.NoError(t, resp.Error)
 			//fmt.Println(resp.Duration)
-			if resp.error != nil {
+			if resp.Error != nil {
 				panic(i)
 			}
 			i++
@@ -44,6 +49,10 @@ func TestMakeRequest(t *testing.T) {
 		}
 		close(done)
 	}()
-	j.makeRequest(req, 65535, responses) //65535
+
+	req, err := makeRequest(reqConfig)
+	assert.NoError(t, err)
+
+	j.runRequest(makeClient(), req, 200) //65535
 	<-done
 }
