@@ -32,6 +32,7 @@ type RequestDuration struct {
 	ID   uint8
 	Name string
 	time.Duration
+	error
 }
 
 type requestTimings []RequestDuration

@@ -45,11 +45,7 @@ func (j *Journey) Stream(numRequests uint16, concurrency uint8, responses chan<-
 		errGroup.Go(func() error {
 			for range numRequests / uint16(concurrency) {
 				for _, req := range j.Requests {
-					j.makeRequest(req, numRequests, nil)
-					// if err != nil {
-					// 	return fmt.Errorf("error making request: %w", err)
-					// }
-					// responses <- RequestDuration{ID: req.ID, Name: req.Name, Duration: duration}
+					j.makeRequest(req, numRequests, responses)
 				}
 			}
 			return nil
@@ -58,12 +54,14 @@ func (j *Journey) Stream(numRequests uint16, concurrency uint8, responses chan<-
 
 	return errGroup.Wait()
 }
-func (j *Journey) makeRequest(requestConfig requestConfig, numRequests uint16, responses chan<- Response) {
+func (j *Journey) makeRequest(requestConfig requestConfig, numRequests uint16, responses chan<- RequestDuration) {
 	defer close(responses)
 
 	parsedURL, err := url.Parse(requestConfig.URL)
 	if err != nil {
-		responses <- Response{
+		responses <- RequestDuration{
+			ID:       requestConfig.ID,
+			Name:     requestConfig.Name,
 			Duration: 0,
 			error:    fmt.Errorf("error parsing url: %s , error: %w", requestConfig.URL, err),
 		}
@@ -80,7 +78,9 @@ func (j *Journey) makeRequest(requestConfig requestConfig, numRequests uint16, r
 
 	req, err := http.NewRequest(requestConfig.Method, parsedURL.String(), bytes.NewReader(requestConfig.Body))
 	if err != nil {
-		responses <- Response{
+		responses <- RequestDuration{
+			ID:       requestConfig.ID,
+			Name:     requestConfig.Name,
 			Duration: 0,
 			error:    fmt.Errorf("error building request: %s %s, error: %w", requestConfig.Method, requestConfig.URL, err),
 		}
@@ -100,6 +100,7 @@ func (j *Journey) makeRequest(requestConfig requestConfig, numRequests uint16, r
 	}
 
 	var cache = dnscache.New(5 * time.Minute)
+	//addrValue := net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 45678}
 	client := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
@@ -113,6 +114,7 @@ func (j *Journey) makeRequest(requestConfig requestConfig, numRequests uint16, r
 					conn, err := (&net.Dialer{
 						Timeout:   30 * time.Second,
 						KeepAlive: 30 * time.Second,
+						//LocalAddr: &addrValue,
 					}).DialContext(ctx, network, net.JoinHostPort(ip.String(), address[separator+1:]))
 					if err == nil {
 						return conn, nil
@@ -151,7 +153,9 @@ func (j *Journey) makeRequest(requestConfig requestConfig, numRequests uint16, r
 		duration := time.Since(start)
 
 		if err != nil {
-			responses <- Response{
+			responses <- RequestDuration{
+				ID:       requestConfig.ID,
+				Name:     requestConfig.Name,
 				Duration: duration,
 				error:    fmt.Errorf("error sending request: %s %s, error: %w", requestConfig.Method, requestConfig.URL, err),
 			}
@@ -159,14 +163,18 @@ func (j *Journey) makeRequest(requestConfig requestConfig, numRequests uint16, r
 		}
 
 		if resp.StatusCode != requestConfig.ExpectedResponseCode {
-			responses <- Response{
+			responses <- RequestDuration{
+				ID:       requestConfig.ID,
+				Name:     requestConfig.Name,
 				Duration: duration,
 				error:    fmt.Errorf("unexpected response code, wanted: %d, got :%d", requestConfig.ExpectedResponseCode, resp.StatusCode),
 			}
 			continue
 		}
 
-		responses <- Response{
+		responses <- RequestDuration{
+			ID:       requestConfig.ID,
+			Name:     requestConfig.Name,
 			Duration: duration,
 		}
 	}
