@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/kmulvey/replay/histogram"
@@ -53,7 +54,7 @@ func configureTUI(configs []histogram.HistogramData, buckets <-chan histogram.Bu
 				barNames[config[0].HistogramName][i] = bucket.Range
 			}
 		}
-
+		var ticker = time.NewTicker(time.Millisecond * 500)
 		for buckets != nil && redistributedBuckets != nil {
 			select {
 			case bucket, open := <-buckets:
@@ -68,7 +69,6 @@ func configureTUI(configs []histogram.HistogramData, buckets <-chan histogram.Bu
 					file.WriteString(fmt.Sprintf("chart not found: %s\n", bucket.HistogramName))
 					panic(charts)
 				}
-				app.Draw()
 
 			case newBuckets, open := <-redistributedBuckets:
 				if !open {
@@ -89,6 +89,7 @@ func configureTUI(configs []histogram.HistogramData, buckets <-chan histogram.Bu
 					}
 				}
 
+			case <-ticker.C:
 				app.Draw()
 			}
 		}
