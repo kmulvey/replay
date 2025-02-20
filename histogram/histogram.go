@@ -53,7 +53,7 @@ func New(name string, numBuckets uint8, redistributeInerval uint32, samples <-ch
 		end := start + h.bucketSize
 		h.buckets[i] = Bucket{
 			HistogramName: name,
-			Range:         fmt.Sprintf("%v - %v", start.Round(time.Millisecond), end.Round(time.Millisecond)),
+			Range:         fmt.Sprintf("%v - %v", start.Round(time.Microsecond), end.Round(time.Microsecond)),
 			Count:         0,
 		}
 	}
@@ -108,7 +108,7 @@ func (h *Histogram) redistributeBuckets() {
 	for i := range h.buckets {
 		start := h.min + time.Duration(i)*h.bucketSize
 		end := start + h.bucketSize
-		h.buckets[i].Range = fmt.Sprintf("%v - %v", start.Round(time.Millisecond), end.Round(time.Millisecond))
+		h.buckets[i].Range = fmt.Sprintf("%v - %v", start.Round(time.Microsecond), end.Round(time.Microsecond))
 	}
 	h.redistributedBuckets <- h.buckets
 }
