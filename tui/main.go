@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
-	"os/signal"
 
 	"github.com/kmulvey/goutils"
 	"github.com/kmulvey/replay/histogram"
@@ -11,12 +11,15 @@ import (
 	"github.com/rivo/tview"
 )
 
+var errLog *os.File
+
 func main() {
+	errLog, _ = os.OpenFile("errors.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 
 	var totalNumberOfRequests int
 	var concurrentRequests int
 	var harFile string
-	flag.IntVar(&totalNumberOfRequests, "total", 100, "total number of requests")
+	flag.IntVar(&totalNumberOfRequests, "total", 1000, "total number of requests")
 	flag.IntVar(&concurrentRequests, "concurrent", 10, "number of concurrent requests")
 	flag.StringVar(&harFile, "har", "../localhost.har", "har file to replay")
 	flag.Parse()
@@ -26,17 +29,9 @@ func main() {
 		panic(err)
 	}
 
-	go func() {
-		if err := tui.Run(); err != nil {
-			panic(err)
-		}
-	}()
-
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	<-c
-	tui.Stop()
-	os.Exit(0)
+	if err := tui.Run(); err != nil {
+		errLog.WriteString(fmt.Sprintf("error running tui: %v\n", err))
+	}
 }
 
 func journeyUI(harFile string, totalNumberOfRequests, concurrentRequests int) (*tview.Application, error) {
@@ -62,23 +57,25 @@ func journeyUI(harFile string, totalNumberOfRequests, concurrentRequests int) (*
 		buckets[i] = make(chan histogram.Bucket)
 	}
 
-	var initialBuckets = make([]BarChartConfig, len(j.Requests))
+	// redistributedBuckets are the histogram bucket values after the buckets have been redistributed
+	// based on the new min and max values
+	var redistributedBuckets = make([]chan histogram.HistogramData, len(j.Requests))
 	for i := range buckets {
-		var chartConfig = BarChartConfig{
-			title: j.Requests[i].Name,
-		}
-		_, bucket := histogram.New(j.Requests[i].Name, 5, 10, graphs[i], buckets[i])
-		chartConfig.buckets = bucket
-		initialBuckets[i] = chartConfig
+		redistributedBuckets[i] = make(chan histogram.HistogramData)
 	}
 
-	var tui = configureTUI(initialBuckets, goutils.MergeChannels(buckets...))
+	var initialBuckets = make([]histogram.HistogramData, len(j.Requests))
+	for i := range buckets {
+		_, initialBuckets[i] = histogram.New(j.Requests[i].Name, 5, 10, graphs[i], buckets[i], redistributedBuckets[i])
+	}
+
+	var tui = configureTUI(initialBuckets, goutils.MergeChannels(buckets...), goutils.MergeChannels(redistributedBuckets...))
 
 	// stream makes the requests and sends the timings to journeyResponses
 	go func() {
 		err = j.Stream(uint16(totalNumberOfRequests), uint8(concurrentRequests), journeyResponses)
 		if err != nil {
-			panic(err) // TODO: i dont love this
+			errLog.WriteString(fmt.Sprintf("error running Stream(): %v\n", err)) // TODO: i dont love this
 		}
 	}()
 

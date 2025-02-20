@@ -10,13 +10,14 @@ import (
 
 // Define a histogram bucket structure
 type Histogram struct {
-	Name                string
-	buckets             []Bucket
-	durations           []time.Duration
-	bucketSize          time.Duration
-	min                 time.Duration
-	max                 time.Duration
-	redistributeInerval uint32
+	Name                 string
+	buckets              []Bucket
+	durations            []time.Duration
+	bucketSize           time.Duration
+	min                  time.Duration
+	max                  time.Duration
+	redistributeInerval  uint32
+	redistributedBuckets chan<- HistogramData
 }
 
 type Bucket struct {
@@ -25,22 +26,25 @@ type Bucket struct {
 	Count         uint64
 }
 
+type HistogramData []Bucket
+
 // New sreates a new histogram with a predefined number of buckets. The bucket ranges
 // are 0-1s initially but will be recalculated as the data comes in.
-func New(name string, numBuckets uint8, redistributeInerval uint32, samples <-chan journey.RequestDuration, buckets chan<- Bucket) (*Histogram, []Bucket) {
+func New(name string, numBuckets uint8, redistributeInerval uint32, samples <-chan journey.RequestDuration, buckets chan<- Bucket, redistributedBuckets chan<- HistogramData) (*Histogram, HistogramData) {
 	if numBuckets == 0 {
 		numBuckets = 5
 	}
 
 	// Create and return the histogram
 	var h = &Histogram{
-		Name:                name,
-		buckets:             make([]Bucket, numBuckets),
-		durations:           make([]time.Duration, 0),
-		bucketSize:          time.Second / time.Duration(numBuckets),
-		min:                 0,
-		max:                 time.Second,
-		redistributeInerval: redistributeInerval,
+		Name:                 name,
+		buckets:              make([]Bucket, numBuckets),
+		durations:            make([]time.Duration, 0),
+		bucketSize:           time.Second / time.Duration(numBuckets),
+		min:                  0,
+		max:                  time.Second,
+		redistributeInerval:  redistributeInerval,
+		redistributedBuckets: redistributedBuckets,
 	}
 
 	// Initialize the buckets
@@ -49,15 +53,10 @@ func New(name string, numBuckets uint8, redistributeInerval uint32, samples <-ch
 		end := start + h.bucketSize
 		h.buckets[i] = Bucket{
 			HistogramName: name,
-			Range:         fmt.Sprintf("%v - %v", start, end),
+			Range:         fmt.Sprintf("%v - %v", start.Round(time.Millisecond), end.Round(time.Millisecond)),
 			Count:         0,
 		}
 	}
-
-	// Send the initial buckets
-	// for _, bucket := range h.buckets {
-	// 	buckets <- bucket
-	// }
 
 	go h.collect(samples, buckets)
 
@@ -76,9 +75,6 @@ func (h *Histogram) collect(samples <-chan journey.RequestDuration, buckets chan
 		seen++
 		if seen == h.redistributeInerval {
 			h.redistributeBuckets()
-			for _, bucket := range h.buckets {
-				buckets <- bucket
-			}
 			seen = 0
 		}
 	}
@@ -112,8 +108,9 @@ func (h *Histogram) redistributeBuckets() {
 	for i := range h.buckets {
 		start := h.min + time.Duration(i)*h.bucketSize
 		end := start + h.bucketSize
-		h.buckets[i].Range = fmt.Sprintf("%v - %v", start, end)
+		h.buckets[i].Range = fmt.Sprintf("%v - %v", start.Round(time.Millisecond), end.Round(time.Millisecond))
 	}
+	h.redistributedBuckets <- h.buckets
 }
 
 // insertDuration inserts a time.Duration into a sorted slice while maintaining order.
