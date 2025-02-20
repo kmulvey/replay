@@ -2,11 +2,16 @@ package journey
 
 import (
 	"bytes"
+	"context"
+	"crypto/tls"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
+	"github.com/viki-org/dnscache"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -53,8 +58,8 @@ func (j *Journey) Stream(numRequests uint16, concurrency uint8, responses chan<-
 
 	return errGroup.Wait()
 }
-
 func (j *Journey) makeRequest(requestConfig requestConfig, numRequests uint16, responses chan<- Response) {
+	defer close(responses)
 
 	parsedURL, err := url.Parse(requestConfig.URL)
 	if err != nil {
@@ -62,6 +67,7 @@ func (j *Journey) makeRequest(requestConfig requestConfig, numRequests uint16, r
 			Duration: 0,
 			error:    fmt.Errorf("error parsing url: %s , error: %w", requestConfig.URL, err),
 		}
+		return
 	}
 
 	if requestConfig.Query != nil {
@@ -78,45 +84,92 @@ func (j *Journey) makeRequest(requestConfig requestConfig, numRequests uint16, r
 			Duration: 0,
 			error:    fmt.Errorf("error building request: %s %s, error: %w", requestConfig.Method, requestConfig.URL, err),
 		}
+		return
 	}
 
 	for k, v := range requestConfig.Headers {
 		req.Header.Set(k, v)
-
 	}
 
 	for k, v := range requestConfig.Cookies {
 		req.AddCookie(&http.Cookie{Name: k, Value: v})
-
 	}
 
 	if requestConfig.MimeType != "" {
 		req.Header.Set("Content-Type", requestConfig.MimeType)
 	}
 
+	var cache = dnscache.New(5 * time.Minute)
+	client := &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+				separator := strings.LastIndex(address, ":")
+				ips, err := cache.Fetch(address[:separator])
+				if err != nil {
+					return nil, fmt.Errorf("failed to fetch IPs: %w", err)
+				}
+				var lastErr error
+				for _, ip := range ips {
+					conn, err := (&net.Dialer{
+						Timeout:   30 * time.Second,
+						KeepAlive: 30 * time.Second,
+					}).DialContext(ctx, network, net.JoinHostPort(ip.String(), address[separator+1:]))
+					if err == nil {
+						return conn, nil
+					}
+					lastErr = err
+				}
+				return nil, fmt.Errorf("failed to connect to any IP: %w", lastErr)
+			},
+			DialTLSContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+				separator := strings.LastIndex(address, ":")
+				ips, err := cache.Fetch(address[:separator])
+				if err != nil {
+					return nil, fmt.Errorf("failed to fetch IPs: %w", err)
+				}
+				var lastErr error
+				for _, ip := range ips {
+					conn, err := tls.DialWithDialer(&net.Dialer{
+						Timeout:   30 * time.Second,
+						KeepAlive: 30 * time.Second,
+					}, network, net.JoinHostPort(ip.String(), address[separator+1:]), &tls.Config{
+						InsecureSkipVerify: true,
+					})
+					if err == nil {
+						return conn, nil
+					}
+					lastErr = err
+				}
+				return nil, fmt.Errorf("failed to connect to any IP: %w", lastErr)
+			},
+		},
+	}
+
 	for range numRequests {
-		var start = time.Now()
-		resp, err := http.DefaultClient.Do(req)
+		start := time.Now()
+		resp, err := client.Do(req)
+		duration := time.Since(start)
+
 		if err != nil {
 			responses <- Response{
-				Duration: 0,
+				Duration: duration,
 				error:    fmt.Errorf("error sending request: %s %s, error: %w", requestConfig.Method, requestConfig.URL, err),
 			}
+			continue
 		}
-		var duration = time.Since(start)
 
 		if resp.StatusCode != requestConfig.ExpectedResponseCode {
 			responses <- Response{
 				Duration: duration,
 				error:    fmt.Errorf("unexpected response code, wanted: %d, got :%d", requestConfig.ExpectedResponseCode, resp.StatusCode),
 			}
+			continue
 		}
 
 		responses <- Response{
-			Duration: time.Since(start),
+			Duration: duration,
 		}
 	}
-	close(responses)
 }
 
 func (j *Journey) collect(responses chan RequestDuration) journeyTiming {
