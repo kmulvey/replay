@@ -42,7 +42,7 @@ func journeyUI(harFile string, totalNumberOfRequests, concurrentRequests int) (*
 	}
 
 	// journeyResponses are the timings of each request
-	var journeyResponses = make(chan journey.RequestDuration)
+	var journeyResponses = make(chan journey.RequestDuration, 1000)
 
 	// we need to fan out the journeyResponses to each graph, one graph per request
 	var graphs = make([]chan journey.RequestDuration, len(j.Requests))
@@ -66,7 +66,7 @@ func journeyUI(harFile string, totalNumberOfRequests, concurrentRequests int) (*
 
 	var initialBuckets = make([]histogram.HistogramData, len(j.Requests))
 	for i := range buckets {
-		_, initialBuckets[i] = histogram.New(j.Requests[i].Name, 5, 10, graphs[i], buckets[i], redistributedBuckets[i])
+		_, initialBuckets[i] = histogram.New(j.Requests[i].Name, 5, 100, graphs[i], buckets[i], redistributedBuckets[i])
 	}
 
 	var tui = configureTUI(initialBuckets, goutils.MergeChannels(buckets...), goutils.MergeChannels(redistributedBuckets...))
